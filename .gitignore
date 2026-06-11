@@ -1,0 +1,7 @@
+/target
+/testdata/consensus-spec-tests/*
+!/testdata/consensus-spec-tests/merkle_proof/
+*.profraw
+.idea/
+.vscode/
+.DS_Store

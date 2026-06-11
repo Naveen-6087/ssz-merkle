@@ -1,0 +1,3 @@
+* text=auto eol=lf
+*.ssz_snappy binary
+*.ssz binary

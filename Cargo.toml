@@ -1,0 +1,35 @@
+[package]
+name = "ssz-merkle"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "SSZ serialization, Merkleization, generalized indices and Merkle proofs for Ethereum consensus types"
+license = "MIT"
+repository = "https://github.com/Naveen-6087/ssz-merkle"
+keywords = ["ethereum", "ssz", "merkle", "consensus"]
+categories = ["cryptography::cryptocurrencies", "encoding"]
+
+[features]
+default = ["cli"]
+cli = ["dep:snap"]
+
+[dependencies]
+sha2 = "0.10"
+snap = { version = "1.1", optional = true }
+
+[[bin]]
+name = "ssz-merkle"
+required-features = ["cli"]
+
+[dev-dependencies]
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+proptest = "1.5"
+snap = "1.1"
+yaml-rust2 = "0.10"
+
+[[bench]]
+name = "merkle"
+harness = false
+
+[profile.test]
+opt-level = 2

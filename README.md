@@ -1,7 +1,7 @@
 # ssz-merkle
 
 [![crates.io](https://img.shields.io/crates/v/ssz-merkle)](https://crates.io/crates/ssz-merkle)
-[![docs.rs](https://docs.rs/ssz-merkle/badge.svg)](https://docs.rs/ssz-merkle)
+[![docs.rs](https://img.shields.io/docsrs/ssz-merkle)](https://docs.rs/ssz-merkle)
 [![CI](https://github.com/Naveen-6087/ssz-merkle/actions/workflows/ci.yml/badge.svg)](https://github.com/Naveen-6087/ssz-merkle/actions/workflows/ci.yml)
 [![MSRV 1.85](https://img.shields.io/badge/MSRV-1.85-blue)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/)
 

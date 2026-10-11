@@ -90,3 +90,25 @@ fn errors_exit_with_code_two() {
     assert!(run(&["types"]).status.success());
     assert!(run(&["--help"]).status.success());
 }
+
+#[test]
+fn dotted_paths_and_multiproof() {
+    let out = run(&["gindex", "BeaconBlockBody", "blob_kzg_commitments.0"]);
+    assert_eq!(field(&stdout(&out), "gindex"), "221184");
+
+    let body = block_body();
+    let out = run(&[
+        "multiproof",
+        "BeaconBlockBody",
+        &body,
+        "blob_kzg_commitments.0",
+        "execution_payload.block_hash",
+    ]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let json = stdout(&out);
+    assert!(json.contains(r#""gindices":[221184,"#), "{json}");
+    assert!(json.contains(r#""helpers":["0x"#));
+
+    let out = run(&["multiproof", "BeaconBlockBody", &body]);
+    assert_eq!(out.status.code(), Some(2));
+}

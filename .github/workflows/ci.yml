@@ -67,8 +67,45 @@ jobs:
         env:
           SSZ_REQUIRE_SPEC_TESTS: "1"
         run: cargo test --all-features
-      - name: Run example
-        run: cargo run --example blob_inclusion_proof
+      - name: Test without default features
+        run: cargo test --no-default-features --lib
+      - name: Run examples
+        run: |
+          cargo run --example blob_inclusion_proof
+          cargo run --example custom_types
+          cargo run --example light_client
+
+  no-std:
+    name: no_std (thumbv7m-none-eabi)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+          targets: thumbv7m-none-eabi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: ci/no-std
+      - name: Library
+        run: cargo build --lib --no-default-features --features serde --target thumbv7m-none-eabi
+      - name: Downstream crate using the macros
+        working-directory: ci/no-std
+        run: cargo build --target thumbv7m-none-eabi
+
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo package --locked
+      - run: cargo package --list
 
   msrv:
     name: MSRV (1.85)

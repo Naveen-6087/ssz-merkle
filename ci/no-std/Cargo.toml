@@ -1,0 +1,10 @@
+[package]
+name = "ssz-merkle-no-std-check"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+ssz-merkle = { path = "../..", default-features = false, features = ["serde"] }
+
+[workspace]

@@ -1,4 +1,6 @@
 /target
+/ci/no-std/target
+/ci/no-std/Cargo.lock
 /testdata/consensus-spec-tests/*
 !/testdata/consensus-spec-tests/merkle_proof/
 *.profraw

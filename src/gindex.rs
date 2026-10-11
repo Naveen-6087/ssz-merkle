@@ -9,17 +9,22 @@ pub struct GeneralizedIndex(u64);
 impl GeneralizedIndex {
     pub const ROOT: Self = Self(1);
 
-    pub fn new(index: u64) -> Option<Self> {
-        (index != 0).then_some(Self(index))
+    pub const fn new(index: u64) -> Option<Self> {
+        if index == 0 { None } else { Some(Self(index)) }
     }
 
-    pub fn get(self) -> u64 {
+    pub const fn get(self) -> u64 {
         self.0
     }
 
     /// Number of edges between this node and the root.
-    pub fn depth(self) -> u32 {
+    pub const fn depth(self) -> u32 {
         63 - self.0.leading_zeros()
+    }
+
+    /// Position within its level, counted from the left (`get_subtree_index`).
+    pub fn subtree_index(self) -> u64 {
+        self.0 - (1 << self.depth())
     }
 
     pub fn bit(self, position: u32) -> bool {
@@ -120,6 +125,8 @@ mod tests {
         assert_eq!(g(8).depth(), 3);
         assert_eq!(g(15).depth(), 3);
         assert_eq!(g(9).sibling(), g(8));
+        assert_eq!(g(9).subtree_index(), 1);
+        assert_eq!(g(1).subtree_index(), 0);
         assert_eq!(g(9).parent(), g(4));
         assert_eq!(g(4).child(true), Some(g(9)));
         assert_eq!(g(u64::MAX).child(false), None);

@@ -38,6 +38,24 @@ impl PathElem {
     }
 }
 
+/// Splits a path such as `"body.blob_kzg_commitments.0"` into elements.
+/// Both `.` and `/` separate elements; empty segments are skipped.
+pub fn parse_path(path: &str) -> Vec<PathElem> {
+    path.split(['.', '/']).filter(|s| !s.is_empty()).map(PathElem::parse).collect()
+}
+
+impl From<&str> for PathElem {
+    fn from(s: &str) -> Self {
+        Self::parse(s)
+    }
+}
+
+impl From<u64> for PathElem {
+    fn from(i: u64) -> Self {
+        Self::Index(i)
+    }
+}
+
 impl fmt::Display for PathElem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -275,6 +293,17 @@ mod tests {
         let inner = Schema::List { elem: Box::new(Schema::Basic { size: 32 }), limit: 1 << 40 };
         let deep = Schema::List { elem: Box::new(inner), limit: 1 << 40 };
         assert_eq!(deep.generalized_index(&path(&["0", "0"])), Err(PathError::Overflow));
+    }
+
+    #[test]
+    fn dotted_paths() {
+        assert_eq!(parse_path("y.5"), path(&["y", "5"]));
+        assert_eq!(parse_path("/y/__len__/"), path(&["y", "__len__"]));
+        assert!(parse_path("").is_empty());
+        assert_eq!(PathElem::from("x"), PathElem::Field("x".into()));
+        assert_eq!(PathElem::from(3u64), PathElem::Index(3));
+        let s = container();
+        assert_eq!(s.generalized_index(&parse_path("y.5")).unwrap().get(), 6 * 8 + 1);
     }
 
     #[test]

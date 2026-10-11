@@ -1,7 +1,8 @@
 use crate::codec::{DecodeError, expect_len};
+use crate::gindex::GeneralizedIndex;
 use crate::hash::Hash256;
 use crate::prelude::*;
-use crate::schema::Schema;
+use crate::schema::{PathElem, PathError, Schema};
 use crate::tree::Tree;
 use crate::u256::U256;
 use crate::value::Value;
@@ -29,6 +30,11 @@ pub trait Ssz: Sized {
     fn schema() -> Schema;
 
     fn to_value(&self) -> Value;
+
+    /// Generalized index of `path` within this type.
+    fn generalized_index(path: &[PathElem]) -> Result<GeneralizedIndex, PathError> {
+        Self::schema().generalized_index(path)
+    }
 
     fn to_ssz(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(self.encoded_len());

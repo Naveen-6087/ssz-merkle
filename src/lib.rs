@@ -28,7 +28,7 @@ pub use collections::{ByteList, ByteVector, LengthError, List, ProgressiveList, 
 pub use gindex::GeneralizedIndex;
 pub use hash::Hash256;
 pub use proof::{ProofError, calculate_merkle_root, verify_merkle_multiproof, verify_merkle_proof};
-pub use schema::{PathElem, PathError, Schema};
+pub use schema::{PathElem, PathError, Schema, parse_path};
 pub use ssz::Ssz;
 pub use tree::{Tree, TreeError};
 pub use u256::U256;

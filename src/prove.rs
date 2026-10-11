@@ -10,18 +10,24 @@ use crate::tree::{Tree, TreeError};
 
 /// A single-item proof: the leaf at `gindex` and its branch (leaf level first).
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Proof {
     pub gindex: GeneralizedIndex,
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde::hash"))]
     pub leaf: Hash256,
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde::hashes"))]
     pub branch: Vec<Hash256>,
 }
 
 /// A proof for several leaves sharing one set of helper nodes, ordered as
 /// [`helper_indices`](crate::gindex::helper_indices) returns them.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Multiproof {
     pub gindices: Vec<GeneralizedIndex>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde::hashes"))]
     pub leaves: Vec<Hash256>,
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde::hashes"))]
     pub helpers: Vec<Hash256>,
 }
 
@@ -201,6 +207,24 @@ mod tests {
         let mut short = m.clone();
         short.helpers.pop();
         assert!(short.root().is_err());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn json_round_trip() {
+        let v = sample();
+        let p = prove(&v, &parse_path("inner.b.2")).unwrap();
+        let json = serde_json::to_string(&p).unwrap();
+        assert!(json.starts_with(&format!("{{\"gindex\":{},\"leaf\":\"0x", p.gindex)));
+        assert_eq!(serde_json::from_str::<Proof>(&json).unwrap(), p);
+
+        let m = prove_multi(&v, &["x", "ys.3"].map(parse_path)).unwrap();
+        let json = serde_json::to_string(&m).unwrap();
+        assert_eq!(serde_json::from_str::<Multiproof>(&json).unwrap(), m);
+
+        assert!(serde_json::from_str::<Proof>(r#"{"gindex":0,"leaf":"0x00","branch":[]}"#).is_err());
+        let short = r#"{"gindex":2,"leaf":"0x00","branch":[]}"#;
+        assert!(serde_json::from_str::<Proof>(short).is_err());
     }
 
     #[test]

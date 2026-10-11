@@ -19,6 +19,8 @@ pub mod merkle;
 pub mod proof;
 mod prove;
 pub mod schema;
+#[cfg(feature = "serde")]
+mod serde;
 mod ssz;
 pub mod tree;
 mod u256;

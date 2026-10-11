@@ -1,4 +1,5 @@
-use std::fmt::Write;
+use crate::prelude::*;
+use core::fmt::Write;
 
 /// Type-erased view of an SSZ value, following the canonical JSON mapping:
 /// integers as decimal strings, byte vectors/lists and bitfields as `0x` hex

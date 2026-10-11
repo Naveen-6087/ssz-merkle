@@ -235,6 +235,7 @@ ssz_container! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prelude::*;
     use crate::{PathElem, Ssz};
 
     fn path(p: &[&str]) -> Vec<PathElem> {

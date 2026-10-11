@@ -1,4 +1,9 @@
+#![no_std]
 #![forbid(unsafe_code)]
+
+extern crate alloc;
+#[cfg(test)]
+extern crate std;
 
 pub mod bits;
 pub mod codec;
@@ -13,6 +18,7 @@ pub mod proof;
 pub mod schema;
 mod ssz;
 pub mod tree;
+use prelude::*;
 mod u256;
 mod value;
 
@@ -28,6 +34,24 @@ pub use tree::{Tree, TreeError};
 pub use u256::U256;
 pub use value::Value;
 
+mod prelude {
+    #[allow(unused_imports)]
+    pub(crate) use alloc::{
+        borrow::ToOwned,
+        boxed::Box,
+        format,
+        string::{String, ToString},
+        vec,
+        vec::Vec,
+    };
+}
+
+#[doc(hidden)]
+pub mod __private {
+    pub use alloc::vec;
+    pub use alloc::vec::Vec;
+}
+
 /// A single-item proof: the leaf at `gindex` and its branch (leaf level first).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proof {
@@ -42,8 +66,8 @@ pub enum ProveError {
     Tree(TreeError),
 }
 
-impl std::fmt::Display for ProveError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ProveError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Path(e) => e.fmt(f),
             Self::Tree(e) => e.fmt(f),
@@ -51,7 +75,7 @@ impl std::fmt::Display for ProveError {
     }
 }
 
-impl std::error::Error for ProveError {}
+impl core::error::Error for ProveError {}
 
 /// Builds the proof for the node reached by `path` inside `value`.
 pub fn prove<T: Ssz>(value: &T, path: &[PathElem]) -> Result<Proof, ProveError> {

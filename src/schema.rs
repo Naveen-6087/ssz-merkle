@@ -1,4 +1,5 @@
-use std::fmt;
+use crate::prelude::*;
+use core::fmt;
 
 use crate::gindex::GeneralizedIndex;
 
@@ -72,7 +73,7 @@ impl fmt::Display for PathError {
     }
 }
 
-impl std::error::Error for PathError {}
+impl core::error::Error for PathError {}
 
 impl fmt::Display for Schema {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

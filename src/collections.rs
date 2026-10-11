@@ -1,5 +1,6 @@
-use std::fmt;
-use std::ops::{Deref, DerefMut};
+use crate::prelude::*;
+use core::fmt;
+use core::ops::{Deref, DerefMut};
 
 use crate::codec::{Count, DecodeError, decode_items, encode_items, encoded_len_of, expect_len};
 use crate::hash::Hash256;
@@ -21,7 +22,7 @@ impl fmt::Display for LengthError {
     }
 }
 
-impl std::error::Error for LengthError {}
+impl core::error::Error for LengthError {}
 
 fn element_chunks<T: Ssz>(items: &[T]) -> Vec<Hash256> {
     if T::is_basic() {
@@ -83,7 +84,7 @@ impl<T, const N: usize> Vector<T, N> {
 
 impl<T: Default, const N: usize> Default for Vector<T, N> {
     fn default() -> Self {
-        Self(std::iter::repeat_with(T::default).take(N).collect())
+        Self(core::iter::repeat_with(T::default).take(N).collect())
     }
 }
 

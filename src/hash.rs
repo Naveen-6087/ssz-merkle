@@ -120,6 +120,7 @@ pub(crate) fn length_chunk(len: u64) -> Hash256 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prelude::*;
 
     fn hex(h: &Hash256) -> String {
         h.iter().map(|b| format!("{b:02x}")).collect()

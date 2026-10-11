@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
-use std::fmt;
+use alloc::collections::BTreeMap;
+use core::fmt;
 
 use crate::gindex::{GeneralizedIndex, helper_indices};
 use crate::hash::{Hash256, hash_pair};
@@ -29,7 +29,7 @@ impl fmt::Display for ProofError {
     }
 }
 
-impl std::error::Error for ProofError {}
+impl core::error::Error for ProofError {}
 
 /// Recomputes the root from a leaf and its branch (leaf level first).
 pub fn calculate_merkle_root(
@@ -120,6 +120,7 @@ pub fn verify_merkle_multiproof(
 mod tests {
     use super::*;
     use crate::merkle::merkleize;
+    use crate::prelude::*;
 
     fn g(i: u64) -> GeneralizedIndex {
         GeneralizedIndex::new(i).unwrap()

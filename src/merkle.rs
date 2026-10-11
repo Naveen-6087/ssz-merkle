@@ -1,4 +1,5 @@
 use crate::hash::{BYTES_PER_CHUNK, Hash256, hash_pair, length_chunk, zero_hash};
+use crate::prelude::*;
 
 pub fn next_pow_of_two(n: usize) -> usize {
     n.max(1).next_power_of_two()

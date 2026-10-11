@@ -1,4 +1,5 @@
-use std::fmt;
+use crate::prelude::*;
+use core::fmt;
 
 use crate::gindex::{GeneralizedIndex, helper_indices};
 use crate::hash::{Hash256, hash_pair, length_chunk, zero_hash};
@@ -26,7 +27,7 @@ impl fmt::Display for TreeError {
     }
 }
 
-impl std::error::Error for TreeError {}
+impl core::error::Error for TreeError {}
 
 impl Tree {
     pub fn root(&self) -> Hash256 {

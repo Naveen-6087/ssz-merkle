@@ -2,6 +2,7 @@ use crate::codec::DecodeError;
 use crate::collections::LengthError;
 use crate::hash::Hash256;
 use crate::merkle::{merkleize, merkleize_progressive, mix_in_length, pack};
+use crate::prelude::*;
 use crate::schema::Schema;
 use crate::ssz::Ssz;
 use crate::tree::Tree;

@@ -1,4 +1,5 @@
-use std::fmt;
+use crate::prelude::*;
+use core::fmt;
 
 /// 256-bit unsigned integer stored as 32 little-endian bytes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -58,7 +59,7 @@ impl From<u128> for U256 {
 
 impl fmt::Display for U256 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut limbs: [u64; 4] = std::array::from_fn(|i| {
+        let mut limbs: [u64; 4] = core::array::from_fn(|i| {
             u64::from_le_bytes(self.0[i * 8..(i + 1) * 8].try_into().expect("8 bytes"))
         });
         if limbs == [0; 4] {
@@ -75,7 +76,7 @@ impl fmt::Display for U256 {
             digits.push(b'0' + rem as u8);
         }
         digits.reverse();
-        f.write_str(std::str::from_utf8(&digits).expect("ascii digits"))
+        f.write_str(core::str::from_utf8(&digits).expect("ascii digits"))
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::hash::{Hash256, hash_pair};
 use crate::merkle::{merkleize_progressive, pack};
+use crate::prelude::*;
 use crate::tree::Tree;
 
 /// Declares a struct and implements [`Ssz`](crate::Ssz) for it as an SSZ
@@ -40,7 +41,7 @@ macro_rules! ssz_container {
             }
 
             fn tree(&self) -> $crate::Tree {
-                let subtrees = vec![ $( $crate::Ssz::tree(&self.$field) ),+ ];
+                let subtrees = $crate::__private::vec![ $( $crate::Ssz::tree(&self.$field) ),+ ];
                 let n = subtrees.len();
                 $crate::Tree::from_subtrees(subtrees, n)
             }
@@ -48,12 +49,12 @@ macro_rules! ssz_container {
             fn schema() -> $crate::Schema {
                 $crate::Schema::Container {
                     name: stringify!($name),
-                    fields: vec![ $( (stringify!($field), <$ty as $crate::Ssz>::schema()) ),+ ],
+                    fields: $crate::__private::vec![ $( (stringify!($field), <$ty as $crate::Ssz>::schema()) ),+ ],
                 }
             }
 
             fn to_value(&self) -> $crate::Value {
-                $crate::Value::Container(vec![ $( (stringify!($field), $crate::Ssz::to_value(&self.$field)) ),+ ])
+                $crate::Value::Container($crate::__private::vec![ $( (stringify!($field), $crate::Ssz::to_value(&self.$field)) ),+ ])
             }
         }
     };
@@ -112,7 +113,7 @@ macro_rules! ssz_progressive_container {
                 let () = Self::_VALID;
                 $crate::container::progressive_tree(
                     Self::ACTIVE_FIELDS,
-                    vec![ $( $crate::Ssz::tree(&self.$field) ),+ ],
+                    $crate::__private::vec![ $( $crate::Ssz::tree(&self.$field) ),+ ],
                 )
             }
 
@@ -120,12 +121,12 @@ macro_rules! ssz_progressive_container {
                 $crate::Schema::ProgressiveContainer {
                     name: stringify!($name),
                     active_fields: Self::ACTIVE_FIELDS.iter().map(|&b| b == 1).collect(),
-                    fields: vec![ $( (stringify!($field), <$ty as $crate::Ssz>::schema()) ),+ ],
+                    fields: $crate::__private::vec![ $( (stringify!($field), <$ty as $crate::Ssz>::schema()) ),+ ],
                 }
             }
 
             fn to_value(&self) -> $crate::Value {
-                $crate::Value::Container(vec![ $( (stringify!($field), $crate::Ssz::to_value(&self.$field)) ),+ ])
+                $crate::Value::Container($crate::__private::vec![ $( (stringify!($field), $crate::Ssz::to_value(&self.$field)) ),+ ])
             }
         }
     };
@@ -148,9 +149,9 @@ macro_rules! __ssz_codec_methods {
             } )+
         }
 
-        fn encode_into(&self, out: &mut Vec<u8>) {
+        fn encode_into(&self, out: &mut $crate::__private::Vec<u8>) {
             let fixed_len = 0 $( + <$ty as $crate::Ssz>::fixed_size().unwrap_or($crate::codec::OFFSET_LEN) )+;
-            let mut variable = Vec::new();
+            let mut variable = $crate::__private::Vec::new();
             $(
                 if <$ty as $crate::Ssz>::fixed_size().is_some() {
                     $crate::Ssz::encode_into(&self.$field, out);

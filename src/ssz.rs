@@ -1,5 +1,6 @@
 use crate::codec::{DecodeError, expect_len};
 use crate::hash::Hash256;
+use crate::prelude::*;
 use crate::schema::Schema;
 use crate::tree::Tree;
 use crate::u256::U256;

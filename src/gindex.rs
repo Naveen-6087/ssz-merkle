@@ -1,4 +1,5 @@
-use std::fmt;
+use crate::prelude::*;
+use core::fmt;
 
 /// Position of a node in a binary Merkle tree: the root is 1 and the
 /// children of `i` are `2i` and `2i + 1`.
@@ -93,8 +94,8 @@ impl fmt::Display for GeneralizedIndex {
 /// Generalized indices of every extra node needed to prove `indices`,
 /// sorted in decreasing order (spec: `get_helper_indices`).
 pub fn helper_indices(indices: &[GeneralizedIndex]) -> Vec<GeneralizedIndex> {
-    let mut helpers = std::collections::BTreeSet::new();
-    let mut paths = std::collections::BTreeSet::new();
+    let mut helpers = alloc::collections::BTreeSet::new();
+    let mut paths = alloc::collections::BTreeSet::new();
     for &index in indices {
         helpers.extend(index.branch_indices());
         paths.extend(index.path_indices());

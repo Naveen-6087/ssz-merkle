@@ -1,4 +1,5 @@
-use std::fmt;
+use crate::prelude::*;
+use core::fmt;
 
 use crate::Ssz;
 
@@ -51,7 +52,7 @@ impl fmt::Display for DecodeError {
     }
 }
 
-impl std::error::Error for DecodeError {}
+impl core::error::Error for DecodeError {}
 
 pub fn write_offset(out: &mut Vec<u8>, offset: usize) {
     let offset = u32::try_from(offset).expect("ssz: serialized object exceeds 2^32 bytes");

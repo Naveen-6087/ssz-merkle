@@ -1,281 +1,284 @@
 # ssz-merkle
 
-SSZ serialization, Merkleization, generalized indices and Merkle proofs for
-Ethereum consensus types, in Rust. The crate passes the official
-`ssz_generic` reference tests (4,624 cases from consensus-specs v1.6.1),
-including the EIP-7916 progressive lists and EIP-7495 progressive
-containers. It also reproduces, byte for byte, the official Deneb blob
-KZG-commitment inclusion proofs for real `BeaconBlockBody` objects.
+[![crates.io](https://img.shields.io/crates/v/ssz-merkle.svg)](https://crates.io/crates/ssz-merkle)
+[![docs.rs](https://docs.rs/ssz-merkle/badge.svg)](https://docs.rs/ssz-merkle)
+[![CI](https://github.com/Naveen-6087/ssz-merkle/actions/workflows/ci.yml/badge.svg)](https://github.com/Naveen-6087/ssz-merkle/actions/workflows/ci.yml)
+[![MSRV 1.85](https://img.shields.io/badge/MSRV-1.85-blue)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/)
 
-```rust
-use ssz_merkle::deneb::BeaconBlockBody;
-use ssz_merkle::{PathElem, Ssz, prove};
+SSZ serialization, `hash_tree_root`, generalized indices and Merkle proofs for
+Ethereum consensus types, in Rust.
 
-let body = BeaconBlockBody::from_ssz(&bytes)?;
-let proof = prove(&body, &[PathElem::parse("blob_kzg_commitments"), PathElem::Index(0)])?;
-assert_eq!(proof.gindex.get(), 221_184); // depth 17, as in blob sidecars
-assert!(proof.verify(&body.hash_tree_root()));
-```
+The crate has three jobs:
 
-## Why
+1. Turning SSZ objects into bytes and back.
+2. Computing their Merkle roots.
+3. Proving that one value sits at a given position under a root. This is
+   the check that light clients, blob sidecars, bridges and zk coprocessors
+   run instead of downloading whole blocks or states.
 
-Every object in Ethereum's consensus layer is identified by its SSZ
-`hash_tree_root`. Light clients, blob sidecars, bridges and zk coprocessors
-never download whole objects. Instead they check that a single value sits at
-a known position under a trusted root. That position is a **generalized
-index** (gindex), and the check is a **Merkle branch**.
+It passes all 4,624 official `ssz_generic` reference tests (consensus-specs
+v1.6.1), and reproduces the official Deneb blob-inclusion proofs byte for
+byte.
 
-Getting these right means reproducing the exact tree shape the spec defines:
-chunk packing, virtual zero padding up to list limits, length mix-ins,
-bitfield delimiters, and now the progressive shapes of EIP-7916 and EIP-7495.
-This crate makes those shapes explicit. Each type knows its schema, so a
-path like `body.execution_payload.block_hash` becomes a gindex. Each value
-can build its full tree, so the branch for that gindex can be extracted and
-verified.
+- **Every SSZ type.** This includes EIP-7916 progressive lists and EIP-7495
+  progressive containers.
+- **Proofs from a path.** A dotted path such as
+  `"body.blob_kzg_commitments.0"` becomes a generalized index, and from there
+  a single proof or one multiproof covering several paths.
+- **Light-client helpers.** The spec's gindex constants, `is_valid_merkle_branch`
+  and `is_valid_normalized_merkle_branch`.
+- **`no_std` + `alloc`.** It runs in embedded targets and zkVM guests, and
+  its only required dependency is `sha2`.
+- **Optional extras.** `serde` support for proofs, and a CLI.
 
-## Features
-
-- **Serialization** of every SSZ type: `uint8`–`uint256`, `boolean`,
-  `Vector`, `List`, `ByteVector`, `ByteList`, `Bitvector`, `Bitlist`,
-  containers, EIP-7916 `ProgressiveList` / `ProgressiveBitlist`, and EIP-7495
-  progressive containers. Decoding is hardened: offsets, limits, delimiters,
-  padding bits and trailing bytes are all checked.
-- **Merkleization**: `hash_tree_root` with virtual zero padding, so a
-  `List<u64, 2^40>` holding 1,000 elements hashes only what it holds.
-- **Generalized indices**: the spec's `get_generalized_index`, extended to
-  bitfields and progressive types, plus `concat`, `relative_to`,
-  `branch_indices`, `path_indices` and `helper_indices`.
-- **Proofs**: single-item and multi-item proofs from an explicit `Tree`, plus
-  `verify_merkle_proof` and `verify_merkle_multiproof`.
-- **Types**: the `ssz_container!` and `ssz_progressive_container!` macros,
-  and the Deneb consensus types (`BeaconBlockBody`, `ExecutionPayload`, ...)
-  for the mainnet preset.
-- **Canonical JSON** via `Ssz::to_value().to_json()`.
-- **CLI**: `ssz-merkle`, for computing gindices, roots, proofs and JSON from
-  SSZ files.
-
-## Architecture
-
-```
-            ssz-merkle (CLI)          deneb (consensus types)
-                    \                     /
-     ssz_container! / ssz_progressive_container!
-                              |
-     Ssz trait: encode | decode | hash_tree_root | tree | schema | to_value
-        |              |                  |              |
-     codec       merkle (pack,      tree (explicit    schema (paths ->
-   (offsets,     merkleize,         Merkle tree,      generalized
-    limits)      progressive)       proofs)           indices)
-                       \                 |
-                        hash (SHA-256, zero hashes)   gindex, proof
-```
-
-| Module | Responsibility |
-|--------|----------------|
-| `ssz` | The `Ssz` trait and impls for basic types |
-| `collections`, `bits` | Vectors, lists, byte types, bitfields, progressive variants |
-| `container` | The container macros and progressive-container hashing |
-| `codec` | Offset tables, element counts, strict decoding errors |
-| `merkle` | `pack`, `merkleize`, `merkleize_progressive`, mix-ins |
-| `tree` | `Tree` with virtual zero subtrees: node lookup, branches, multiproofs |
-| `schema` | Static type shapes and path → gindex resolution |
-| `gindex`, `proof` | Generalized index arithmetic and proof verification |
-| `deneb` | Deneb mainnet consensus types |
-
-### Design decisions
-
-- **Two Merkleization paths, cross-checked.** `hash_tree_root` merkleizes
-  directly, layer by layer, without building nodes. `tree()` builds an
-  explicit tree for proofs. Every reference vector and property test asserts
-  that the two give the same root.
-- **Virtual padding.** `Tree::Zero(depth)` represents an all-zero subtree in
-  O(1), so proofs into `List[Transaction, 2^20]` or deep inside zero padding
-  cost the same as anywhere else.
-- **Schemas are values.** `T::schema()` returns a `Schema` tree, and gindex
-  resolution runs over it with checked 64-bit arithmetic (overflow is an
-  error, not a wrap).
-- **Distinct byte types.** `ByteVector`/`ByteList` share the SSZ and hashing
-  of `Vector[uint8]`/`List[uint8]` but render as hex, matching the
-  canonical JSON mapping and the test vectors.
-- **Strict multiproofs.** `calculate_multi_merkle_root` follows the spec,
-  but also rejects duplicate indices and indices nested inside other proven
-  indices, which could otherwise claim two values for one node.
-- **No `unsafe`, one runtime dependency** (`sha2`). `snap` is only pulled in
-  by the default `cli` feature.
-
-### Progressive types
-
-EIP-7916 lists merkleize as `hash(rest, first)`. Level *k* holds 4ᵏ chunks
-in its right subtree, and the remaining levels hang off the left. The gindex
-of chunk *p* therefore walks left once per full level, then indexes into the
-right subtree. EIP-7495 containers place each field at the position of the
-matching `1` in `active_fields`, merkleize progressively, and mix in the
-packed `active_fields` bits. The spec's `get_generalized_index` predates both
-EIPs, so this extension is this crate's own and is checked against the tree
-by the property tests.
-
-## Usage
+## Install
 
 ```toml
 [dependencies]
-ssz-merkle = { git = "https://github.com/Naveen-6087/ssz-merkle" }
-# library only, without the CLI's snappy dependency:
-# ssz-merkle = { git = "...", default-features = false }
+ssz-merkle = "0.1"
 ```
 
-Defining types:
+| Feature | Default | What it adds |
+|---------|---------|--------------|
+| `serde` | no | `Serialize`/`Deserialize` for `Proof`, `Multiproof` and `GeneralizedIndex` (hashes as `0x` hex) |
+| `cli` | no | The `ssz-merkle` binary: `cargo install ssz-merkle --features cli` |
+
+The library is always `#![no_std]` and uses `alloc`. Hashing goes through
+the [`sha2`](https://crates.io/crates/sha2) crate. zkVMs that accelerate
+SHA-256 by patching `sha2` (as SP1 and RISC Zero do) therefore speed this
+crate up with no code changes.
+
+## Quick start
+
+Declare your types with the container macro. Fields are serialized and
+merkleized in declaration order, exactly as the SSZ spec defines containers:
 
 ```rust
-use ssz_merkle::{Bitlist, List, Ssz, ssz_container};
+use ssz_merkle::{Bitlist, ByteVector, List, Ssz, ssz_container};
 
 ssz_container! {
     #[derive(Clone, Debug, Default, PartialEq, Eq)]
-    pub struct Vote {
-        pub slot: u64,
-        pub voters: Bitlist<2048>,
-        pub roots: List<u64, 16>,
+    pub struct Validator {
+        pub pubkey: ByteVector<48>,
+        pub effective_balance: u64,
+        pub slashed: bool,
     }
 }
 
-let vote = Vote::default();
-let bytes = vote.to_ssz();
-assert_eq!(Vote::from_ssz(&bytes).unwrap(), vote);
-let root = vote.hash_tree_root();
+ssz_container! {
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct Registry {
+        pub epoch: u64,
+        pub validators: List<Validator, 1048576>,
+        pub participation: Bitlist<1048576>,
+    }
+}
+
+let registry = Registry {
+    epoch: 7,
+    validators: List::new(vec![Validator::default(); 3]).unwrap(),
+    participation: Bitlist::from_bools(&[true, false, true]).unwrap(),
+};
+
+let bytes = registry.to_ssz();
+assert_eq!(Registry::from_ssz(&bytes).unwrap(), registry);
+let root: [u8; 32] = registry.hash_tree_root();
 ```
 
-Proving and verifying:
+### Prove a value
 
 ```rust
-use ssz_merkle::{GeneralizedIndex, PathElem, Ssz, prove, verify_merkle_proof};
+# use ssz_merkle::{List, Ssz, ssz_container};
+# ssz_container! {
+#     #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#     pub struct Registry { pub epoch: u64, pub balances: List<u64, 1024> }
+# }
+# let registry = Registry { epoch: 7, balances: List::new(vec![32; 100]).unwrap() };
+use ssz_merkle::{parse_path, prove};
 
-let path = [PathElem::parse("roots"), PathElem::Index(3)];
-let proof = prove(&vote, &path)?;                 // leaf, branch, gindex
-assert!(verify_merkle_proof(&proof.leaf, &proof.branch, proof.gindex, &root));
+let root = registry.hash_tree_root();
+let path = parse_path("balances.42");
+let proof = prove(&registry, &path).unwrap();     // gindex, leaf, branch
 
-let gindex = Vote::schema().generalized_index(&path)?;  // no value needed
+// The verifier recomputes the gindex from its own copy of the type, so a
+// prover cannot pass off a branch for a different field.
+assert!(proof.verify_path::<Registry>(&path, &root));
 ```
 
-`cargo run --example blob_inclusion_proof` chains two proofs: a blob KZG
-commitment into a real Deneb block body, then the body into a block header
-(gindex `12 ⊕ 221184 = 1662976`, depth 20). That is what a light client
-checks for a blob sidecar.
+### Prove several values at once
+
+A multiproof shares every node that the individual branches have in common:
+
+```rust
+# use ssz_merkle::{List, Ssz, ssz_container, parse_path};
+# ssz_container! {
+#     #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#     pub struct Registry { pub epoch: u64, pub balances: List<u64, 1024> }
+# }
+# let registry = Registry { epoch: 7, balances: List::new(vec![32; 100]).unwrap() };
+use ssz_merkle::prove_multi;
+
+let paths = ["epoch", "balances.__len__", "balances.42", "balances.99"].map(parse_path);
+let multi = prove_multi(&registry, &paths).unwrap();
+assert!(multi.verify_paths::<Registry, _>(&paths, &registry.hash_tree_root()));
+```
+
+### Generalized indices without a value
+
+```rust
+use ssz_merkle::deneb::{BeaconBlock, BeaconBlockBody};
+use ssz_merkle::{Ssz, parse_path};
+
+let g = BeaconBlockBody::generalized_index(&parse_path("blob_kzg_commitments.0")).unwrap();
+assert_eq!((g.get(), g.depth()), (221_184, 17)); // as in Deneb blob sidecars
+
+let g = BeaconBlock::generalized_index(&parse_path("body.execution_payload.block_hash")).unwrap();
+assert_eq!(g.get(), 6444);
+```
+
+### Light clients
+
+```rust
+use ssz_merkle::deneb::BeaconBlockBody;
+use ssz_merkle::light_client::{EXECUTION_PAYLOAD_GINDEX, is_valid_merkle_branch};
+use ssz_merkle::{Ssz, parse_path, prove};
+
+let body = BeaconBlockBody::default();
+let body_root = body.hash_tree_root(); // in practice: from a trusted header
+let proof = prove(&body, &parse_path("execution_payload")).unwrap();
+
+let g = EXECUTION_PAYLOAD_GINDEX;
+assert!(is_valid_merkle_branch(&proof.leaf, &proof.branch, g.depth(), g.subtree_index(), &body_root));
+```
+
+`light_client` also exports `FINALIZED_ROOT_GINDEX`,
+`CURRENT_SYNC_COMMITTEE_GINDEX` and `NEXT_SYNC_COMMITTEE_GINDEX`, in their
+Altair and `_ELECTRA` variants. The tests check each of them against the
+`BeaconState` field layout of its fork. `is_valid_normalized_merkle_branch`
+accepts branches built for a deeper state, as the Electra light-client
+protocol requires.
+
+### Serde
+
+With the `serde` feature, proofs serialize to plain JSON:
+
+```text
+{"gindex":221184,"leaf":"0xc7b8...","branch":["0x0000...", "0xf5a5...", ...]}
+```
+
+## What's inside
+
+| Module | Contents |
+|--------|----------|
+| crate root | `Ssz` trait, `prove`, `prove_multi`, `Proof`, `Multiproof`, `parse_path` |
+| `collections`, `bits` | `Vector`, `List`, `ByteVector`, `ByteList`, `Bitvector`, `Bitlist`, `ProgressiveList`, `ProgressiveBitlist` |
+| `ssz_container!`, `ssz_progressive_container!` | Containers and EIP-7495 progressive containers |
+| `gindex` | `GeneralizedIndex` arithmetic: `concat`, `relative_to`, `branch_indices`, `helper_indices` |
+| `proof` | `verify_merkle_proof`, `calculate_multi_merkle_root` and friends |
+| `tree` | `Tree`, an explicit Merkle tree with virtual zero subtrees |
+| `schema` | Type shapes and path → gindex resolution |
+| `light_client` | Spec gindex constants and branch checks |
+| `deneb` | Deneb mainnet types (`BeaconBlock`, `BeaconBlockBody`, `ExecutionPayload`, ...) |
+| `hex` | `encode`, `decode`, `decode_hash` |
+
+Basic types are `u8`, `u16`, `u32`, `u64`, `u128`, `U256` and `bool`.
+
+### How it works
+
+- **Two Merkleization paths, cross-checked.** `hash_tree_root` hashes layer
+  by layer without allocating nodes. `tree()` builds the explicit tree that
+  proofs are read from. The reference tests and property tests assert that
+  both give the same root.
+- **Virtual zero padding.** All-zero subtrees cost O(1). A
+  `List<u64, 2^40>` with 1,000 elements hashes only what it holds, and a
+  proof deep inside the padding costs the same as anywhere else.
+- **Schemas are values.** `T::schema()` describes the type's shape, and
+  gindex resolution walks it with checked 64-bit arithmetic: overflow is an
+  error, never a silent wrap.
+- **Strict multiproofs.** Verification follows the spec, but also rejects
+  duplicate indices and indices nested inside other proven indices. Either
+  would let a proof claim two values for one node.
 
 ## CLI
 
-```
-ssz-merkle types                              list the built-in Deneb types
-ssz-merkle gindex <type> [path...]            generalized index of a path
-ssz-merkle root   <type> <file>               hash_tree_root of an SSZ object
-ssz-merkle json   <type> <file>               canonical JSON
-ssz-merkle prove  <type> <file> [path...]     Merkle proof for a path
-ssz-merkle verify <root> <leaf> <gindex> [branch...]
-```
-
-Files hold raw SSZ, or snappy-compressed SSZ if the name ends in
-`.ssz_snappy`. Output is JSON. The exit status is `0` on success, `1` for an
-invalid proof and `2` for usage or input errors.
-
 ```console
-$ ssz-merkle gindex BeaconBlockBody blob_kzg_commitments 0
+$ cargo install ssz-merkle --features cli
+
+$ ssz-merkle gindex BeaconBlockBody blob_kzg_commitments.0
 {"gindex":221184,"depth":17,"type":"Vector[uint8, 48]"}
 
-$ ssz-merkle gindex BeaconBlock body execution_payload block_hash
-{"gindex":6444,"depth":12,"type":"Vector[uint8, 32]"}
-
-$ BODY=testdata/consensus-spec-tests/merkle_proof/BeaconBlockBody/blob_kzg_commitment_merkle_proof__random_block_1/object.ssz_snappy
-$ ssz-merkle root BeaconBlockBody $BODY
-{"root":"0x4393548ea4bf4f5625079f98d40ed403cc2b250438a0c8ee953752f8297a9537"}
-
-$ ssz-merkle prove BeaconBlockBody $BODY blob_kzg_commitments 0
-{"root":"0x4393...9537","gindex":221184,"leaf":"0xc7b8...c3ac","branch":["0x0000...0000", ...17 nodes]}
+$ ssz-merkle root  BeaconBlockBody block.ssz_snappy
+$ ssz-merkle prove BeaconBlockBody block.ssz_snappy blob_kzg_commitments.0
+$ ssz-merkle multiproof BeaconBlockBody block.ssz_snappy blob_kzg_commitments.0 execution_payload.block_hash
+$ ssz-merkle verify <root> <leaf> <gindex> <branch...>
+$ ssz-merkle json  BeaconBlockBody block.ssz_snappy
 ```
 
-(Hashes are abbreviated above; the CLI prints them in full.)
+Input files hold raw SSZ, or snappy-compressed SSZ when the name ends in
+`.ssz_snappy`. Output is JSON. The exit status is 0 on success, 1 for an
+invalid proof, and 2 for usage or input errors.
+
+## Examples
+
+```sh
+cargo run --example custom_types           # containers, proofs, multiproofs
+cargo run --example light_client           # header -> execution payload -> block hash
+cargo run --example blob_inclusion_proof   # a real Deneb blob commitment into a block header
+```
 
 ## Testing
 
 ```sh
-bash scripts/fetch-spec-tests.sh   # consensus-specs v1.6.1 ssz_generic (~170 MB download, checksum verified)
+bash scripts/fetch-spec-tests.sh   # consensus-specs v1.6.1 ssz_generic, checksum verified
 cargo test --all-features
 ```
 
-| Suite | Cases | Checks |
-|-------|------:|--------|
-| `ssz_generic` (v1.6.1) | 4,624 | Valid cases: decode, re-encode byte-exact, `hash_tree_root` and `tree().root()` against the expected root, decoded value against `value.yaml`. Invalid cases: decoding must fail. Covers `uints` 66, `boolean` 6, `bitvector` 85, `bitlist` 494, `basic_vector` 1,157, `basic_progressive_list` 887, `progressive_bitlist` 703, `containers` 701, `progressive_containers` 525 |
-| Deneb `merkle_proof` | 4 | Real block bodies decode and re-encode; the generated proof for `blob_kzg_commitments[0]` equals the official gindex, leaf and 17-node branch |
-| Property tests (proptest) | 9 | Round trips; tree root equals `hash_tree_root`; proofs for every field, nested field, length and packed basic element; multiproofs; merkleize vs naive padding; decoding is canonical (whatever decodes re-encodes to the same bytes); mutated encodings never panic; gindex `concat`/`relative_to` inverses |
-| Unit tests | 39 | Spec examples (helper indices, `{x, y}` paths), known gindices (221184, `EXECUTION_PAYLOAD_GINDEX` 25), progressive layouts, edge cases |
-| CLI and doc tests | 6 | End-to-end prove → verify, exit codes, JSON output |
-
-Without the downloaded suites, the `ssz_generic` tests are skipped. Set
-`SSZ_REQUIRE_SPEC_TESTS=1` to make that a failure, as CI does.
+| Suite | Checks |
+|-------|--------|
+| `ssz_generic` (4,624 cases) | Decode, byte-exact re-encode, both Merkleization paths against the expected root, and the decoded value against `value.yaml`. Every invalid case must fail to decode. |
+| Deneb `merkle_proof` | The generated proof for `blob_kzg_commitments[0]` equals the official gindex, leaf and 17-node branch. |
+| Property tests | Round trips; the tree root equals `hash_tree_root`; proofs and multiproofs for every field, element and length; decoding is canonical; mutated input never panics. |
+| Unit and doc tests | Spec examples, light-client gindices against the `BeaconState` layouts, serde round trips, and the examples in this README. |
+| CI | fmt, clippy, tests, MSRV 1.85, a `no_std` build for `thumbv7m-none-eabi` (including a downstream crate that uses the macros), docs, `cargo package` and `cargo audit`. |
 
 ## Benchmarks
 
-```sh
-cargo bench --bench merkle
-```
+`cargo bench --bench merkle`. One run on an Intel Core i5-12500H gave these
+Criterion medians:
 
-One local sample (Windows, Intel Core i5-12500H, `cargo bench`, Criterion
-median). Treat these as orders of magnitude only:
-
-| Benchmark | Time |
+| Operation | Time |
 |-----------|------|
-| `merkleize` 1,024 chunks / 65,536 chunks | 118 µs / 7.2 ms |
-| `merkleize_progressive` 1,024 / 65,536 chunks | 111 µs / 7.6 ms |
-| `hash_tree_root` of `List<u64, 2^40>` with 1,000 / 100,000 elements | 32 µs / 3.3 ms |
-| Deneb block body (36 KB): decode / encode | 85 µs / 12 µs |
-| Deneb block body: `hash_tree_root` / full `tree()` | 321 µs / 726 µs |
+| `merkleize` 65,536 chunks | 7.2 ms |
+| `hash_tree_root` of `List<u64, 2^40>` with 100,000 elements | 3.3 ms |
+| Deneb block body (36 KB): decode / encode / `hash_tree_root` | 85 µs / 12 µs / 321 µs |
 | Prove `blob_kzg_commitments[0]` (tree build included) / verify | 814 µs / 2.6 µs |
 | Resolve a gindex from a path | 36 ns |
 
-The `Benchmarks` workflow reruns the suite on GitHub's runners and uploads
-Criterion's reports as an artifact.
+## Security
 
-## Security considerations
-
-- Decoding is consensus-critical and strict. The reference invalid cases
-  exercise malformed offsets, wrong lengths, over-limit lists and bitlists,
-  missing delimiters, non-zero bitvector padding, and invalid booleans. The
-  property tests check that any accepted encoding is canonical.
-- A Merkle proof only proves what its gindex means for the expected schema.
-  Callers must derive the gindex from the type they trust, not take it from
-  the prover.
-- Hashing is not constant time. Inputs here are public consensus data.
-- This crate has not been audited. For production consensus clients, prefer
-  battle-tested crates such as `ethereum_ssz` / `tree_hash` (Lighthouse) or
-  `ssz_rs`.
+- Decoding is strict. Bad offsets, wrong lengths, over-limit lists,
+  missing bitlist delimiters, non-zero padding bits and invalid booleans are
+  all rejected, and whatever decodes re-encodes to the same bytes.
+- Always derive the gindex from the type you trust (`verify_path`,
+  `verify_paths`, or the `light_client` constants), never from the prover.
+- Hashing is not constant time. The inputs are public consensus data.
+- The crate has not been audited.
 
 ## Limitations
 
-- `Union` and the newer `CompatibleUnion` (`compatible_unions` suite) are not
-  implemented.
-- Only Deneb mainnet types are bundled. Other forks' types can be declared
-  with the macros.
-- `Tree` materializes every non-zero node, so proving into very large
-  objects (a full `BeaconState`) uses memory proportional to the object.
-- Generalized indices are 64-bit. Paths deeper than 63 levels return
-  `PathError::Overflow`.
-
-## Development
-
-```sh
-cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-features
-cargo +1.85 check --all-targets --all-features   # MSRV
-cargo audit
-```
+- `Union` and `CompatibleUnion` are not implemented.
+- Only Deneb mainnet types are bundled. Types for other forks are a few
+  lines each with the macros.
+- `tree()` materializes every non-zero node, so proving into a whole
+  `BeaconState` uses memory proportional to the state.
+- Generalized indices are 64-bit, which limits paths to 63 levels.
 
 ## References
 
-- [SSZ specification](https://github.com/ethereum/consensus-specs/blob/v1.6.1/ssz/simple-serialize.md)
-  and [Merkle proof formats](https://github.com/ethereum/consensus-specs/blob/v1.6.1/ssz/merkle-proofs.md)
-- [EIP-7916: SSZ ProgressiveList](https://eips.ethereum.org/EIPS/eip-7916)
-- [EIP-7495: SSZ ProgressiveContainer](https://eips.ethereum.org/EIPS/eip-7495)
-- [Deneb p2p: blob sidecar inclusion proofs](https://github.com/ethereum/consensus-specs/blob/v1.6.1/specs/deneb/p2p-interface.md)
+- [SSZ specification](https://github.com/ethereum/consensus-specs/blob/v1.6.1/ssz/simple-serialize.md) and [Merkle proof formats](https://github.com/ethereum/consensus-specs/blob/v1.6.1/ssz/merkle-proofs.md)
+- [EIP-7916 ProgressiveList](https://eips.ethereum.org/EIPS/eip-7916) and [EIP-7495 ProgressiveContainer](https://eips.ethereum.org/EIPS/eip-7495)
+- [Altair light client sync protocol](https://github.com/ethereum/consensus-specs/blob/v1.6.1/specs/altair/light-client/sync-protocol.md)
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Reference test data is CC0; see
-[testdata/README.md](testdata/README.md).
+MIT

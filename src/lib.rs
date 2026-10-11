@@ -1,4 +1,5 @@
 #![no_std]
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
 extern crate alloc;

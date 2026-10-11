@@ -10,7 +10,7 @@ keywords = ["ethereum", "ssz", "merkle", "consensus"]
 categories = ["cryptography::cryptocurrencies", "encoding"]
 
 [features]
-default = ["cli"]
+default = []
 cli = ["dep:snap"]
 
 [dependencies]

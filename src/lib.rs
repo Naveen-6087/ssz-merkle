@@ -13,6 +13,7 @@ pub mod container;
 pub mod deneb;
 pub mod gindex;
 pub mod hash;
+pub mod hex;
 pub mod light_client;
 pub mod merkle;
 pub mod proof;

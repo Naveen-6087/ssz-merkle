@@ -3,11 +3,14 @@ name = "ssz-merkle"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "SSZ serialization, Merkleization, generalized indices and Merkle proofs for Ethereum consensus types"
+description = "SSZ serialization, Merkleization, generalized indices and Merkle proofs (single, multi and light-client) for Ethereum consensus types, with no_std support"
 license = "MIT"
 repository = "https://github.com/Naveen-6087/ssz-merkle"
-keywords = ["ethereum", "ssz", "merkle", "consensus"]
-categories = ["cryptography::cryptocurrencies", "encoding"]
+documentation = "https://docs.rs/ssz-merkle"
+readme = "README.md"
+keywords = ["ethereum", "ssz", "merkle-proof", "consensus", "no-std"]
+categories = ["cryptography::cryptocurrencies", "encoding", "no-std"]
+include = ["/src", "/examples", "/benches", "/README.md", "/CHANGELOG.md", "/LICENSE"]
 
 [features]
 default = []
@@ -36,3 +39,6 @@ harness = false
 
 [profile.test]
 opt-level = 2
+
+[package.metadata.docs.rs]
+all-features = true
